@@ -23,7 +23,7 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")
 # Dynamically construct the WhatsApp API URL using the environment variable.
 # This is a crucial fix to ensure the bot works in different environments.
 if PHONE_NUMBER_ID:
-    WA_URL = f"https://graph.facebook.com/v19.0/{756179407576683}/messages"
+    WA_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 else:
     # If the PHONE_NUMBER_ID is not set, the bot cannot send messages.
     # Raise an error or log a critical message.
