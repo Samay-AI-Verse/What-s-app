@@ -7,12 +7,12 @@ app = FastAPI()
 # =============================
 # ENVIRONMENT VARIABLES
 # =============================
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")          # Meta access token (test or permanent)
-PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")        # From Meta "Getting Started"
-VERIFY_TOKEN     = os.getenv("VERIFY_TOKEN", "verify_me")
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")      # Meta access token (test or permanent)
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")      # From Meta "Getting Started"
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "verify_me")
 # Optional: Groq only to rephrase approved replies from our KB (never open-ended)
-GROQ_API_KEY     = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL       = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")
 
 WA_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 
@@ -114,6 +114,7 @@ OUT_OF_SCOPE_HINTS = {
 # UTIL: Send WhatsApp text
 # =============================
 def send_text(to: str, text: str) -> None:
+    """Sends a standard text message to a WhatsApp user."""
     if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
         print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
         return
@@ -123,6 +124,75 @@ def send_text(to: str, text: str) -> None:
         requests.post(WA_URL, headers=headers, json=payload, timeout=20)
     except requests.exceptions.RequestException as e:
         print("WhatsApp send error:", e)
+
+# =============================
+# UTIL: Send WhatsApp Interactive List Message
+# =============================
+def send_interactive_list_message(to: str, interactive_payload: dict):
+    """
+    Sends an interactive list message to a WhatsApp user.
+    The interactive_payload should be a dictionary formatted
+    for a list message, with header, body, action, and sections.
+    """
+    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
+        print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
+        return
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": interactive_payload
+    }
+    try:
+        requests.post(WA_URL, headers=headers, json=payload, timeout=20)
+    except requests.exceptions.RequestException as e:
+        print(f"Error sending interactive message: {e}")
+
+# =============================
+# MENU PAYLOAD
+# =============================
+def get_main_menu_payload():
+    """Generates the JSON payload for the main interactive menu."""
+    return {
+        "type": "list",
+        "header": {
+            "type": "text",
+            "text": "Dream Webies Menu"
+        },
+        "body": {
+            "text": "👋 Welcome to Dream Webies! Please select an option from the menu below."
+        },
+        "action": {
+            "button": "View Options",
+            "sections": [
+                {
+                    "title": "About Us & Services",
+                    "rows": [
+                        { "id": "about_us", "title": "1️⃣ About Dream Webies", "description": "Our mission and values." },
+                        { "id": "it_services", "title": "2️⃣ IT Services", "description": "Web, mobile, and AI solutions." },
+                    ]
+                },
+                {
+                    "title": "DWANI Program",
+                    "rows": [
+                        { "id": "dwani_program", "title": "3️⃣ DWANI (Internships)", "description": "Student growth and training program." },
+                        { "id": "certifications", "title": "4️⃣ Certifications", "description": "Certificates for program completion." },
+                    ]
+                },
+                {
+                    "title": "Connect",
+                    "rows": [
+                        { "id": "contact_us", "title": "5️⃣ Contact Us", "description": "Get in touch with our team." },
+                    ]
+                }
+            ]
+        },
+        "footer": {
+            "text": "Type 'menu' anytime to see these options again."
+        }
+    }
+
 
 # =============================
 # OPTIONAL: Groq rephrasing (KB-only)
@@ -231,13 +301,39 @@ async def receive_webhook(request: Request):
 
         msg = messages[0]
         from_number = msg.get("from")
+
+        # Handle interactive messages (list replies) first
+        if msg.get("interactive"):
+            interactive_type = msg["interactive"].get("type")
+            if interactive_type == "list_reply":
+                list_reply_id = msg["interactive"]["list_reply"]["id"]
+                # Map the list reply ID to a KB response
+                mapping = {
+                    "about_us": "about",
+                    "it_services": "services",
+                    "dwani_program": "dwani_intro",
+                    "certifications": "certifications",
+                    "contact_us": "contact"
+                }
+                raw_answer = KB.get(mapping.get(list_reply_id), KB["oos"])
+                final_answer = rephrase_with_groq(raw_answer)
+                send_text(from_number, final_answer)
+                return {"status": "ok"}
+            # Future-proof: add logic for other interactive types here if needed
+
+        # Handle standard text messages
         user_text = msg.get("text", {}).get("body", "")
+        lc = user_text.strip().lower()
 
-        # Route strictly to KB
+        # If a user types a menu keyword, send the interactive menu
+        if any(lc == w for w in ALIASES["menu"]):
+            menu_payload = get_main_menu_payload()
+            send_interactive_list_message(from_number, menu_payload)
+            return {"status": "ok"}
+
+        # Otherwise, route to the KB as a fallback
         raw_answer = route_intent(user_text)
-        # Optional polish with Groq (safe: only rephrasing our KB text)
         final_answer = rephrase_with_groq(raw_answer)
-
         send_text(from_number, final_answer)
 
     except Exception as e:
