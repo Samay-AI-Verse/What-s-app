@@ -20,17 +20,6 @@ WA_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 # COMPANY KNOWLEDGE BASE (KB)
 # =============================
 KB: dict[str, str] = {
-    "menu": (
-        "👋 *Welcome to Dream Webies!*\n"
-        "Please choose an option:\n"
-        "1️⃣ About Dream Webies\n"
-        "2️⃣ IT Services\n"
-        "3️⃣ DWANI (Internships & Training)\n"
-        "4️⃣ Certifications\n"
-        "5️⃣ Contact Us\n\n"
-        "You can also type: *about*, *services*, *dwani*, *internships*, *certifications*, *contact*.\n"
-        "Type *menu* anytime to see options again."
-    ),
     "about": (
         "🏢 *About Dream Webies*\n"
         "Dream Webies is an IT company delivering end-to-end solutions in Web & Mobile, AI/Data, and Cloud/DevOps.\n"
@@ -239,9 +228,8 @@ def route_intent(user_text: str) -> str:
     # Normalizations
     t_clean = re.sub(r"\s+", " ", t)
 
-    # Menu words
-    if any(t_clean == w for w in ALIASES["menu"]):
-        return KB["menu"]
+    # We removed the KB entry for "menu" because we now use an interactive menu.
+    # The `receive_webhook` function handles sending the interactive menu directly.
 
     # Direct aliases
     for key, words in ALIASES.items():
