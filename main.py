@@ -1,118 +1,243 @@
 from fastapi import FastAPI, Request
-import requests
-import os
+import os, requests, re
+from typing import Dict, Any
 
 app = FastAPI()
 
 # =============================
 # ENVIRONMENT VARIABLES
 # =============================
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")  # Meta test token
-PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")  # Meta phone number ID
-VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "my_verify_token")  # Your secret token
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")  # Groq API key
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")  # Groq model
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")          # Meta access token (test or permanent)
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")        # From Meta "Getting Started"
+VERIFY_TOKEN     = os.getenv("VERIFY_TOKEN", "verify_me")
+# Optional: Groq only to rephrase approved replies from our KB (never open-ended)
+GROQ_API_KEY     = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL       = os.getenv("GROQ_MODEL", "llama3-8b-8192")
 
 WA_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 
 # =============================
-# SEND WHATSAPP TEXT MESSAGE
+# COMPANY KNOWLEDGE BASE (KB)
 # =============================
-def send_text(to: str, text: str):
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "text": {"body": text}
-    }
-    requests.post(WA_URL, headers=headers, json=payload, timeout=20)
+KB: Dict[str, str] = {
+    "menu": (
+        "👋 *Welcome to Dream Webies!*\n"
+        "Please choose an option:\n"
+        "1️⃣ About Dream Webies\n"
+        "2️⃣ IT Services\n"
+        "3️⃣ DWANI (Internships & Training)\n"
+        "4️⃣ Certifications\n"
+        "5️⃣ Contact Us\n\n"
+        "You can also type: *about*, *services*, *dwani*, *internships*, *certifications*, *contact*.\n"
+        "Type *menu* anytime to see options again."
+    ),
+    "about": (
+        "🏢 *About Dream Webies*\n"
+        "Dream Webies is an IT company delivering end-to-end solutions in Web & Mobile, AI/Data, and Cloud/DevOps.\n"
+        "We focus on quality delivery, transparent timelines, and scalable architecture.\n"
+        "Clients choose us for product thinking, fast execution, and long-term support.\n"
+        "Type *services* to see what we build."
+    ),
+    "services": (
+        "💼 *IT Services (Projects & Clients)*\n"
+        "• Web Development (frontend, backend, APIs)\n"
+        "• Mobile Apps (Flutter/React Native)\n"
+        "• AI & Data (ML models, analytics, RAG)\n"
+        "• Cloud & DevOps (CI/CD, Docker, Kubernetes)\n"
+        "• Custom Software (B2B tools, dashboards)\n\n"
+        "Reply with your idea, timeline, and budget to start, or type *contact*."
+    ),
+    "dwani_intro": (
+        "🎓 *DWANI — Student Growth Program*\n"
+        "Internships, training, and certifications designed for practical skills and job-readiness.\n"
+        "Tracks: Python/AI-ML, Flutter (Mobile), Web Full-Stack.\n"
+        "Includes mentorship, project work, and certificate on completion.\n"
+        "Type *internships* to see tracks, or *apply* to get the form."
+    ),
+    "internships": (
+        "📝 *DWANI Internships (Choose a track)*\n"
+        "1) Python / AI-ML — Python basics, NumPy/Pandas, ML intro, mini-projects\n"
+        "2) Flutter (Mobile) — Dart, widgets, REST APIs, app deployment\n"
+        "3) Web Full-Stack — HTML/CSS/JS + backend (Python/Node) + DB basics\n"
+        "Duration: 8–12 weeks | Mentored projects | Certificate provided\n"
+        "Type *apply* to get the application form."
+    ),
+    "apply": (
+        "🔗 *Apply to DWANI*\n"
+        "Application Form: https://example.com/apply (replace with your real link)\n"
+        "Fill your details, choose track, and our team will contact you.\n"
+        "For queries, type *contact*."
+    ),
+    "certifications": (
+        "📜 *Certifications*\n"
+        "• Certificate of Completion for each DWANI track\n"
+        "• Project Report/Letter (on request)\n"
+        "• Performance feedback from mentor\n"
+        "Type *dwani* or *internships* for program details."
+    ),
+    "contact": (
+        "📞 *Contact Dream Webies*\n"
+        "Email: info@dreamwebies.com\n"
+        "Phone: +91-98765-43210\n"
+        "Website: https://dreamwebies.com\n"
+        "Share your requirement to get a quick estimate."
+    ),
+    "oos": (  # out-of-scope message
+        "🙏 I can only help with Dream Webies company info, IT services, and the DWANI program.\n"
+        "Type *menu* to see options."
+    ),
+}
+
+# Allowed intents/aliases mapping
+ALIASES = {
+    "about": {"about", "company", "dream webies", "1"},
+    "services": {"services", "it services", "projects", "2"},
+    "dwani": {"dwani", "program", "student", "training"},
+    "internships": {"internship", "internships", "tracks", "3"},
+    "certifications": {"certificate", "certificates", "certifications", "4"},
+    "contact": {"contact", "phone", "email", "5"},
+    "apply": {"apply", "application", "form", "register"},
+    "menu": {"hi", "hello", "start", "menu"},
+}
+
+# Hard guardrail keywords – if detected with no company intent, we refuse
+OUT_OF_SCOPE_HINTS = {
+    "math", "solve", "translate", "news", "weather", "movie", "code", "program",
+    "python error", "history", "politics", "celebrity", "recipe", "lyrics", "stock",
+    "sports", "medical", "legal", "tax", "gaming", "travel", "horoscope"
+}
 
 # =============================
-# GROQ AI CHAT
+# UTIL: Send WhatsApp text
 # =============================
-def groq_chat(user_text: str) -> str:
+def send_text(to: str, text: str) -> None:
+    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
+        print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
+        return
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "text": {"body": text}}
+    try:
+        requests.post(WA_URL, headers=headers, json=payload, timeout=20)
+    except requests.exceptions.RequestException as e:
+        print("WhatsApp send error:", e)
+
+# =============================
+# OPTIONAL: Groq rephrasing (KB-only)
+# =============================
+def rephrase_with_groq(original: str) -> str:
+    """
+    Rephrase the already-approved KB answer for tone/fluency only.
+    NEVER answer open-ended questions. If GROQ_API_KEY is missing, return original.
+    """
     if not GROQ_API_KEY:
-        return "AI service is not available right now."
-
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {"role": "system", "content": "You are a friendly and helpful WhatsApp chatbot."},
-            {"role": "user", "content": user_text}
-        ],
-        "max_tokens": 300
-    }
-    r = requests.post(url, headers=headers, json=payload, timeout=40)
-    return r.json()["choices"][0]["message"]["content"].strip()
-
-# =============================
-# MENU
-# =============================
-def menu_root():
-    return (
-        "👋 Welcome!\n"
-        "1️⃣ Our Services\n"
-        "2️⃣ Contact Info\n"
-        "Type anything else to chat with AI.\n"
-        "Type *menu* anytime to see this again."
-    )
+        return original
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        # We pass ONLY the approved KB text. The model must not add external info.
+        system = (
+            "You are a company chatbot for Dream Webies. "
+            "Only rewrite the provided ANSWER for clarity and friendliness. "
+            "Do NOT add new facts. Do NOT answer questions outside company scope."
+        )
+        payload = {
+            "model": GROQ_MODEL,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": f"ANSWER:\n{original}\n\nRewrite it politely for WhatsApp (keep emojis)."}
+            ],
+            "max_tokens": 220,
+            "temperature": 0.2
+        }
+        r = requests.post(url, headers=headers, json=payload, timeout=35)
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print("Groq rephrase failed:", e)
+        return original
 
 # =============================
-# VERIFY WEBHOOK (GET)
+# INTENT ROUTER (Strict)
+# =============================
+def route_intent(user_text: str) -> str:
+    """Return a KB answer or out-of-scope message. Groq is never asked open-ended."""
+    t = (user_text or "").strip().lower()
+
+    # Normalizations
+    t_clean = re.sub(r"\s+", " ", t)
+
+    # Menu words
+    if any(t_clean == w for w in ALIASES["menu"]):
+        return KB["menu"]
+
+    # Direct aliases
+    for key, words in ALIASES.items():
+        if key == "menu":
+            continue
+        if any(t_clean == w or w in t_clean for w in words):
+            # map special cases
+            if key == "dwani":
+                return KB["dwani_intro"]
+            if key in KB:
+                return KB[key]
+
+    # Numeric shortcuts for menu
+    if t_clean in {"1", "2", "3", "4", "5"}:
+        mapping = {"1": "about", "2": "services", "3": "dwani_intro", "4": "certifications", "5": "contact"}
+        return KB[mapping[t_clean]]
+
+    # If user's text mentions obvious out-of-scope topics → block
+    if any(hint in t_clean for hint in OUT_OF_SCOPE_HINTS):
+        return KB["oos"]
+
+    # Otherwise try soft matching to company topics
+    soft_map = [
+        (("about", "who are you", "company info", "dream webies"), KB["about"]),
+        (("service", "build app", "project", "website", "mobile", "ai", "cloud"), KB["services"]),
+        (("dwani", "student", "training", "internship", "internships", "apply"), KB["dwani_intro"]),
+        (("certificate", "certification"), KB["certifications"]),
+        (("contact", "email", "phone"), KB["contact"]),
+    ]
+    for keys, answer in soft_map:
+        if any(k in t_clean for k in keys):
+            return answer
+
+    # Default: refuse
+    return KB["oos"]
+
+# =============================
+# WEBHOOK VERIFY (GET)
 # =============================
 @app.get("/webhook")
 async def verify_webhook(request: Request):
-    params = dict(request.query_params)
-    mode = params.get("hub.mode")
-    token = params.get("hub.verify_token")
-    challenge = params.get("hub.challenge", 0)
-    if mode == "subscribe" and token == VERIFY_TOKEN:
-        return int(challenge)
+    p = dict(request.query_params)
+    if p.get("hub.mode") == "subscribe" and p.get("hub.verify_token") == VERIFY_TOKEN:
+        return int(p.get("hub.challenge", 0))
     return "Verification failed"
 
 # =============================
-# RECEIVE WHATSAPP MESSAGE (POST)
+# WEBHOOK RECEIVE (POST)
 # =============================
 @app.post("/webhook")
 async def receive_webhook(request: Request):
-    data = await request.json()
+    data: Dict[str, Any] = await request.json()
     try:
         messages = data["entry"][0]["changes"][0]["value"].get("messages", [])
         if not messages:
             return {"status": "no_message"}
 
         msg = messages[0]
-        from_number = msg["from"]
-        user_text = msg.get("text", {}).get("body", "").strip()
+        from_number = msg.get("from")
+        user_text = msg.get("text", {}).get("body", "")
 
-        lc = user_text.lower()
+        # Route strictly to KB
+        raw_answer = route_intent(user_text)
+        # Optional polish with Groq (safe: only rephrasing our KB text)
+        final_answer = rephrase_with_groq(raw_answer)
 
-        # Show menu
-        if lc in ["hi", "hello", "menu", "start"]:
-            send_text(from_number, menu_root())
-            return {"status": "ok"}
-
-        # Menu options
-        if lc == "1":
-            send_text(from_number, "💼 We provide AI, Web, and Mobile development services.")
-            return {"status": "ok"}
-        elif lc == "2":
-            send_text(from_number, "📞 Contact us: info@example.com | +91-98765-43210")
-            return {"status": "ok"}
-
-        # AI fallback
-        ai_reply = groq_chat(user_text)
-        send_text(from_number, ai_reply + "\n\nType *menu* to see options.")
+        send_text(from_number, final_answer)
 
     except Exception as e:
-        print("Error:", e)
+        print("Webhook error:", e)
 
     return {"status": "ok"}
