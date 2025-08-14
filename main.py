@@ -7,35 +7,30 @@ app = FastAPI()
 # =============================
 # ENVIRONMENT VARIABLES
 # =============================
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
-PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
-VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "verify_me")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")          # Meta access token (test or permanent)
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")        # From Meta "Getting Started"
+VERIFY_TOKEN     = os.getenv("VERIFY_TOKEN", "verify_me")
+# Optional: Groq only to rephrase approved replies from our KB (never open-ended)
+GROQ_API_KEY     = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL       = os.getenv("GROQ_MODEL", "llama3-8b-8192")
 
 WA_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 
 # =============================
 # COMPANY KNOWLEDGE BASE (KB)
 # =============================
-# Updated KB to support new interactive message types.
-KB: Dict[str, Any] = {
-    "menu_list": {
-        "text": "👋 Welcome to Dream Webies! Please choose an option below:",
-        "button": "View Menu",
-        "sections": [
-            {
-                "title": "Main Menu",
-                "rows": [
-                    {"id": "menu_about", "title": "1️⃣ About Dream Webies", "description": "Learn about our company"},
-                    {"id": "menu_services", "title": "2️⃣ IT Services", "description": "See our project offerings"},
-                    {"id": "menu_dwani", "title": "3️⃣ DWANI (Internships & Training)", "description": "Explore our student programs"},
-                    {"id": "menu_certifications", "title": "4️⃣ Certifications", "description": "Details on our certificates"},
-                    {"id": "menu_contact", "title": "5️⃣ Contact Us", "description": "Get in touch with our team"}
-                ]
-            }
-        ]
-    },
+KB: dict[str, str] = {
+    "menu": (
+        "👋 *Welcome to Dream Webies!*\n"
+        "Please choose an option:\n"
+        "1️⃣ About Dream Webies\n"
+        "2️⃣ IT Services\n"
+        "3️⃣ DWANI (Internships & Training)\n"
+        "4️⃣ Certifications\n"
+        "5️⃣ Contact Us\n\n"
+        "You can also type: *about*, *services*, *dwani*, *internships*, *certifications*, *contact*.\n"
+        "Type *menu* anytime to see options again."
+    ),
     "about": (
         "🏢 *About Dream Webies*\n"
         "Dream Webies is an IT company delivering end-to-end solutions in Web & Mobile, AI/Data, and Cloud/DevOps.\n"
@@ -57,7 +52,8 @@ KB: Dict[str, Any] = {
         "Internships, training, and certifications designed for practical skills and job-readiness.\n"
         "Tracks: Python/AI-ML, Flutter (Mobile), Web Full-Stack.\n"
         "Includes mentorship, project work, and certificate on completion.\n"
-        "Type *internships* to see tracks, or *apply* to get the form."
+        "Type *internships* to see tracks, or *apply* to get the form.\n\n"
+        "More info: https://www.dwani.net/"
     ),
     "internships": (
         "📝 *DWANI Internships (Choose a track)*\n"
@@ -65,14 +61,15 @@ KB: Dict[str, Any] = {
         "2) Flutter (Mobile) — Dart, widgets, REST APIs, app deployment\n"
         "3) Web Full-Stack — HTML/CSS/JS + backend (Python/Node) + DB basics\n"
         "Duration: 8–12 weeks | Mentored projects | Certificate provided\n"
-        "Type *apply* to get the application form."
+        "Type *apply* to get the application form.\n\n"
+        "Apply here: https://www.dwani.net/"
     ),
-    # Interactive message with URL button
-    "apply": {
-        "text": "🔗 *Apply to DWANI*\nReady to apply? Click the button below to fill out your details, choose a track, and our team will contact you.",
-        "button_text": "Apply Now",
-        "url": "https://example.com/apply" # Replace with your real link
-    },
+    "apply": (
+        "🔗 *Apply to DWANI*\n"
+        "Application Form: https://www.dwani.net/\n"
+        "Fill your details, choose track, and our team will contact you.\n"
+        "For queries, type *contact*."
+    ),
     "certifications": (
         "📜 *Certifications*\n"
         "• Certificate of Completion for each DWANI track\n"
@@ -80,31 +77,30 @@ KB: Dict[str, Any] = {
         "• Performance feedback from mentor\n"
         "Type *dwani* or *internships* for program details."
     ),
-    # Interactive message with URL and phone/email buttons
-    "contact": {
-        "text": "📞 *Contact Dream Webies*\nHave questions? You can reach us directly via the options below.",
-        "buttons": [
-            {"type": "url", "title": "Visit Website", "url": "https://dreamwebies.com"},
-            {"type": "url", "title": "Email Us", "url": "mailto:info@dreamwebies.com"},
-            {"type": "url", "title": "Call Us", "url": "tel:+91-98765-43210"}
-        ]
-    },
-    "oos": (  # out-of-scope message
+    "contact": (
+        "📞 *Contact Dream Webies*\n"
+        "Email: dreamwebies@gmail.com\n"
+        "Phone: +91 78756 49426\n"
+        "Website: https://dreamwebies.com/portfolio.php\n"
+        "Share your requirement to get a quick estimate."
+    ),
+    "oos": (
         "🙏 I can only help with Dream Webies company info, IT services, and the DWANI program.\n"
-        "Tap the menu button to see options."
+        "Type *menu* to see options."
     ),
 }
 
+
 # Allowed intents/aliases mapping
 ALIASES = {
-    "menu": {"hi", "hello", "start", "menu"},
     "about": {"about", "company", "dream webies", "1"},
     "services": {"services", "it services", "projects", "2"},
-    "dwani": {"dwani", "program", "student", "training", "3"},
-    "internships": {"internship", "internships", "tracks"},
+    "dwani": {"dwani", "program", "student", "training"},
+    "internships": {"internship", "internships", "tracks", "3"},
     "certifications": {"certificate", "certificates", "certifications", "4"},
     "contact": {"contact", "phone", "email", "5"},
     "apply": {"apply", "application", "form", "register"},
+    "menu": {"hi", "hello", "start", "menu"},
 }
 
 # Hard guardrail keywords – if detected with no company intent, we refuse
@@ -129,65 +125,6 @@ def send_text(to: str, text: str) -> None:
         print("WhatsApp send error:", e)
 
 # =============================
-# UTIL: Send WhatsApp interactive message (list/button)
-# =============================
-def send_interactive_message(to: str, message_data: Dict[str, Any]) -> None:
-    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
-        print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
-        return
-    
-    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
-    
-    message_type = "interactive"
-    
-    if "sections" in message_data:
-        # This is a list message
-        interactive_payload = {
-            "type": "list",
-            "body": {"text": message_data["text"]},
-            "action": {
-                "button": message_data["button"],
-                "sections": message_data["sections"]
-            }
-        }
-    elif "buttons" in message_data:
-        # This is a button message (with multiple URL buttons)
-        interactive_payload = {
-            "type": "button",
-            "body": {"text": message_data["text"]},
-            "action": {
-                "buttons": message_data["buttons"]
-            }
-        }
-    elif "url" in message_data:
-        # This is a reply button message with a single URL
-        interactive_payload = {
-            "type": "button",
-            "body": {"text": message_data["text"]},
-            "action": {
-                "buttons": [
-                    {"type": "reply", "reply": {"id": "button_id_1", "title": message_data["button_text"]}},
-                    {"type": "url", "title": "Visit Link", "url": message_data["url"]}
-                ]
-            }
-        }
-    else:
-        print("Invalid interactive message type.")
-        return
-        
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": message_type,
-        message_type: interactive_payload
-    }
-    
-    try:
-        requests.post(WA_URL, headers=headers, json=payload, timeout=20)
-    except requests.exceptions.RequestException as e:
-        print("WhatsApp interactive message send error:", e)
-
-# =============================
 # OPTIONAL: Groq rephrasing (KB-only)
 # =============================
 def rephrase_with_groq(original: str) -> str:
@@ -200,6 +137,7 @@ def rephrase_with_groq(original: str) -> str:
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        # We pass ONLY the approved KB text. The model must not add external info.
         system = (
             "You are a company chatbot for Dream Webies. "
             "Only rewrite the provided ANSWER for clarity and friendliness. "
@@ -224,56 +162,51 @@ def rephrase_with_groq(original: str) -> str:
 # =============================
 # INTENT ROUTER (Strict)
 # =============================
-def route_intent(user_text: str) -> tuple:
-    """Return a KB answer and its type (text or interactive)."""
+def route_intent(user_text: str) -> str:
+    """Return a KB answer or out-of-scope message. Groq is never asked open-ended."""
     t = (user_text or "").strip().lower()
 
     # Normalizations
     t_clean = re.sub(r"\s+", " ", t)
 
-    # Handle interactive list message replies (button clicks)
-    if t_clean.startswith("menu_"):
-        map_id_to_key = {
-            "menu_about": "about",
-            "menu_services": "services",
-            "menu_dwani": "dwani_intro",
-            "menu_certifications": "certifications",
-            "menu_contact": "contact"
-        }
-        key = map_id_to_key.get(t_clean)
-        if key and key in KB:
-            return KB[key], "text" if isinstance(KB[key], str) else "interactive"
+    # Menu words
+    if any(t_clean == w for w in ALIASES["menu"]):
+        return KB["menu"]
 
     # Direct aliases
     for key, words in ALIASES.items():
+        if key == "menu":
+            continue
         if any(t_clean == w or w in t_clean for w in words):
-            kb_key = key
+            # map special cases
             if key == "dwani":
-                kb_key = "dwani_intro"
-            elif key == "menu":
-                return KB["menu_list"], "interactive"
+                return KB["dwani_intro"]
+            if key in KB:
+                return KB[key]
 
-            if kb_key in KB:
-                return KB[kb_key], "text" if isinstance(KB[kb_key], str) else "interactive"
+    # Numeric shortcuts for menu
+    if t_clean in {"1", "2", "3", "4", "5"}:
+        mapping = {"1": "about", "2": "services", "3": "dwani_intro", "4": "certifications", "5": "contact"}
+        return KB[mapping[t_clean]]
 
     # If user's text mentions obvious out-of-scope topics → block
     if any(hint in t_clean for hint in OUT_OF_SCOPE_HINTS):
-        return KB["oos"], "text"
+        return KB["oos"]
 
     # Otherwise try soft matching to company topics
     soft_map = [
-        (("about", "who are you", "company info", "dream webies"), "about"),
-        (("service", "build app", "project", "website", "mobile", "ai", "cloud"), "services"),
-        (("dwani", "student", "training", "internship", "internships", "apply"), "dwani_intro"),
-        (("certificate", "certification"), "certifications"),
-        (("contact", "email", "phone"), "contact"),
+        (("about", "who are you", "company info", "dream webies"), KB["about"]),
+        (("service", "build app", "project", "website", "mobile", "ai", "cloud"), KB["services"]),
+        (("dwani", "student", "training", "internship", "internships", "apply"), KB["dwani_intro"]),
+        (("certificate", "certification"), KB["certifications"]),
+        (("contact", "email", "phone"), KB["contact"]),
     ]
-    for keys, answer_key in soft_map:
+    for keys, answer in soft_map:
         if any(k in t_clean for k in keys):
-            return KB[answer_key], "text" if isinstance(KB[answer_key], str) else "interactive"
+            return answer
 
-    # Default: refuse and show menu
-    return KB["menu_list"], "interactive"
+    # Default: refuse
+    return KB["oos"]
 
 # =============================
 # WEBHOOK VERIFY (GET)
@@ -298,31 +231,15 @@ async def receive_webhook(request: Request):
 
         msg = messages[0]
         from_number = msg.get("from")
-        
-        # Check for both text messages and interactive replies
-        if "text" in msg:
-            user_text = msg["text"]["body"]
-        elif "interactive" in msg:
-            # Handle list and button replies
-            if "list_reply" in msg["interactive"]:
-                user_text = msg["interactive"]["list_reply"]["id"]
-            elif "button_reply" in msg["interactive"]:
-                user_text = msg["interactive"]["button_reply"]["id"]
-            else:
-                user_text = ""
-        else:
-            user_text = ""
-            
+        user_text = msg.get("text", {}).get("body", "")
+
         # Route strictly to KB
-        raw_answer, answer_type = route_intent(user_text)
-        
-        # If it's a text response, optionally polish with Groq
-        if answer_type == "text":
-            final_answer = rephrase_with_groq(raw_answer)
-            send_text(from_number, final_answer)
-        elif answer_type == "interactive":
-            send_interactive_message(from_number, raw_answer)
-        
+        raw_answer = route_intent(user_text)
+        # Optional polish with Groq (safe: only rephrasing our KB text)
+        final_answer = rephrase_with_groq(raw_answer)
+
+        send_text(from_number, final_answer)
+
     except Exception as e:
         print("Webhook error:", e)
 
