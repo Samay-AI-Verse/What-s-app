@@ -1,4 +1,20 @@
+from fastapi import FastAPI, Request
+import os, requests, re
+from typing import Dict, Any
 
+app = FastAPI()
+
+# =============================
+# ENVIRONMENT VARIABLES
+# =============================
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "verify_me")
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+
+WA_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 
 # =============================
 # COMPANY KNOWLEDGE BASE (KB)
