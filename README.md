@@ -49,7 +49,20 @@ Create a .env file in the project root with:
 env
 Copy
 Edit
+WHATSAPP_API_KEY=your_whatsapp_business_api_key
+OPENAI_API_KEY=your_openai_api_key
+📌 Roadmap
+ Core FastAPI backend setup
 
+ WhatsApp Business API connection
+
+ AI response integration
+
+ Database setup for conversation history
+
+ Deployment to Render
+
+ Admin dashboard (optional future)
 
 🤝 Contributing
 Contributions, issues, and feature requests are welcome!
