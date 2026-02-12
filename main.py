@@ -1,6 +1,10 @@
 from fastapi import FastAPI, Request
 import os, requests, re
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI()
 
@@ -76,10 +80,30 @@ ALIASES = {
 }
 
 OUT_OF_SCOPE_HINTS = {
-    "math", "solve", "translate", "news", "weather", "movie", "code", "program",
-    "python error", "history", "politics", "celebrity", "recipe", "lyrics", "stock",
-    "sports", "medical", "legal", "tax", "gaming", "travel", "horoscope"
+    "math",
+    "solve",
+    "translate",
+    "news",
+    "weather",
+    "movie",
+    "code",
+    "program",
+    "python error",
+    "history",
+    "politics",
+    "celebrity",
+    "recipe",
+    "lyrics",
+    "stock",
+    "sports",
+    "medical",
+    "legal",
+    "tax",
+    "gaming",
+    "travel",
+    "horoscope",
 }
+
 
 # =============================
 # UTIL: Send WhatsApp Messages
@@ -88,47 +112,56 @@ def send_text(to: str, text: str) -> None:
     if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
         print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
         return
-    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json",
+    }
     payload = {"messaging_product": "whatsapp", "to": to, "text": {"body": text}}
     try:
         requests.post(WA_URL, headers=headers, json=payload, timeout=20)
     except requests.exceptions.RequestException as e:
         print("WhatsApp send error:", e)
 
+
 def send_image(to: str, image_url: str, caption: str) -> None:
     if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
         print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
         return
-    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json",
+    }
     payload = {
         "messaging_product": "whatsapp",
         "to": to,
         "type": "image",
-        "image": {
-            "link": image_url,
-            "caption": caption
-        }
+        "image": {"link": image_url, "caption": caption},
     }
     try:
         requests.post(WA_URL, headers=headers, json=payload, timeout=20)
     except requests.exceptions.RequestException as e:
         print("WhatsApp image send error:", e)
 
+
 def send_interactive_message(to: str, interactive_payload: dict):
     if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
         print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
         return
-    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json",
+    }
     payload = {
         "messaging_product": "whatsapp",
         "to": to,
         "type": "interactive",
-        "interactive": interactive_payload
+        "interactive": interactive_payload,
     }
     try:
         requests.post(WA_URL, headers=headers, json=payload, timeout=20)
     except requests.exceptions.RequestException as e:
         print(f"Error sending interactive message: {e}")
+
 
 # =============================
 # INTERACTIVE PAYLOADS
@@ -141,21 +174,51 @@ def get_main_menu_payload():
         "action": {
             "button": "View Options",
             "sections": [
-                {"title": "Our Company", "rows": [
-                    {"id": "about_us", "title": "1️⃣ About Dream Webies", "description": "Our mission and values."},
-                    {"id": "it_services_menu", "title": "2️⃣ IT Services", "description": "Web, mobile, and AI solutions."},
-                ]},
-                {"title": "DWANI Program", "rows": [
-                    {"id": "dwani_program", "title": "3️⃣ DWANI (Internships)", "description": "Student growth and training program."},
-                    {"id": "certifications", "title": "4️⃣ Certifications", "description": "Certificates for program completion."},
-                ]},
-                {"title": "Connect", "rows": [
-                    {"id": "contact_us", "title": "5️⃣ Contact Us", "description": "Get in touch with our team."},
-                ]}
-            ]
+                {
+                    "title": "Our Company",
+                    "rows": [
+                        {
+                            "id": "about_us",
+                            "title": "1️⃣ About Dream Webies",
+                            "description": "Our mission and values.",
+                        },
+                        {
+                            "id": "it_services_menu",
+                            "title": "2️⃣ IT Services",
+                            "description": "Web, mobile, and AI solutions.",
+                        },
+                    ],
+                },
+                {
+                    "title": "DWANI Program",
+                    "rows": [
+                        {
+                            "id": "dwani_program",
+                            "title": "3️⃣ DWANI (Internships)",
+                            "description": "Student growth and training program.",
+                        },
+                        {
+                            "id": "certifications",
+                            "title": "4️⃣ Certifications",
+                            "description": "Certificates for program completion.",
+                        },
+                    ],
+                },
+                {
+                    "title": "Connect",
+                    "rows": [
+                        {
+                            "id": "contact_us",
+                            "title": "5️⃣ Contact Us",
+                            "description": "Get in touch with our team.",
+                        },
+                    ],
+                },
+            ],
         },
-        "footer": {"text": "Type 'menu' anytime to see these options again."}
+        "footer": {"text": "Type 'menu' anytime to see these options again."},
     }
+
 
 def get_it_services_menu_payload():
     return {
@@ -165,34 +228,70 @@ def get_it_services_menu_payload():
         "action": {
             "button": "Select a Service",
             "sections": [
-                {"title": "Our Expertise", "rows": [
-                    {"id": "service_web", "title": "Web Development", "description": "Websites, web apps, APIs."},
-                    {"id": "service_mobile", "title": "Mobile Apps", "description": "iOS/Android apps with Flutter."},
-                    {"id": "service_ai", "title": "AI & Data Solutions", "description": "ML models, data analytics."},
-                    {"id": "service_cloud", "title": "Cloud & DevOps", "description": "CI/CD, infrastructure."},
-                ]},
-                {"title": "Need something else?", "rows": [
-                    {"id": "contact_us", "title": "Contact Us Directly", "description": "For custom solutions and quotes."},
-                ]},
-            ]
+                {
+                    "title": "Our Expertise",
+                    "rows": [
+                        {
+                            "id": "service_web",
+                            "title": "Web Development",
+                            "description": "Websites, web apps, APIs.",
+                        },
+                        {
+                            "id": "service_mobile",
+                            "title": "Mobile Apps",
+                            "description": "iOS/Android apps with Flutter.",
+                        },
+                        {
+                            "id": "service_ai",
+                            "title": "AI & Data Solutions",
+                            "description": "ML models, data analytics.",
+                        },
+                        {
+                            "id": "service_cloud",
+                            "title": "Cloud & DevOps",
+                            "description": "CI/CD, infrastructure.",
+                        },
+                    ],
+                },
+                {
+                    "title": "Need something else?",
+                    "rows": [
+                        {
+                            "id": "contact_us",
+                            "title": "Contact Us Directly",
+                            "description": "For custom solutions and quotes.",
+                        },
+                    ],
+                },
+            ],
         },
-        "footer": {"text": "Select a service to get started."}
+        "footer": {"text": "Select a service to get started."},
     }
+
 
 def get_dwani_buttons_payload():
     return {
         "type": "button",
         "header": {"type": "text", "text": "DWANI Student Growth Program"},
-        "body": {"text": "Our program offers practical training and mentorship. Which would you like to know more about?"},
+        "body": {
+            "text": "Our program offers practical training and mentorship. Which would you like to know more about?"
+        },
         "action": {
             "buttons": [
-                {"type": "reply", "reply": {"id": "internship_tracks", "title": "Internship Tracks"}},
-                {"type": "reply", "reply": {"id": "certifications", "title": "Certifications"}},
+                {
+                    "type": "reply",
+                    "reply": {"id": "internship_tracks", "title": "Internship Tracks"},
+                },
+                {
+                    "type": "reply",
+                    "reply": {"id": "certifications", "title": "Certifications"},
+                },
                 {"type": "reply", "reply": {"id": "apply_form", "title": "Apply Now"}},
             ]
         },
-        "footer": {"text": "Select an option to proceed."}
+        "footer": {"text": "Select an option to proceed."},
     }
+
 
 def get_after_service_prompt_payload(service_name):
     return {
@@ -202,12 +301,19 @@ def get_after_service_prompt_payload(service_name):
         },
         "action": {
             "buttons": [
-                {"type": "reply", "reply": {"id": "contact_us", "title": "Share Details & Contact"}},
-                {"type": "reply", "reply": {"id": "it_services_menu", "title": "Back to Services"}},
+                {
+                    "type": "reply",
+                    "reply": {"id": "contact_us", "title": "Share Details & Contact"},
+                },
+                {
+                    "type": "reply",
+                    "reply": {"id": "it_services_menu", "title": "Back to Services"},
+                },
             ]
         },
-        "footer": {"text": "We look forward to hearing from you!"}
+        "footer": {"text": "We look forward to hearing from you!"},
     }
+
 
 def get_back_to_menu_button_payload():
     return {
@@ -218,7 +324,7 @@ def get_back_to_menu_button_payload():
                 {"type": "reply", "reply": {"id": "main_menu", "title": "Main Menu"}},
             ]
         },
-        "footer": {"text": "Tap the button above."}
+        "footer": {"text": "Tap the button above."},
     }
 
 
@@ -230,7 +336,10 @@ def rephrase_with_groq(original: str) -> str:
         return original
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        }
         system = (
             "You are a company chatbot for Dream Webies. "
             "Only rewrite the provided ANSWER for clarity and friendliness. "
@@ -240,10 +349,13 @@ def rephrase_with_groq(original: str) -> str:
             "model": GROQ_MODEL,
             "messages": [
                 {"role": "system", "content": system},
-                {"role": "user", "content": f"ANSWER:\n{original}\n\nRewrite it politely for WhatsApp (keep emojis)."}
+                {
+                    "role": "user",
+                    "content": f"ANSWER:\n{original}\n\nRewrite it politely for WhatsApp (keep emojis).",
+                },
             ],
             "max_tokens": 220,
-            "temperature": 0.2
+            "temperature": 0.2,
         }
         r = requests.post(url, headers=headers, json=payload, timeout=35)
         r.raise_for_status()
@@ -251,6 +363,7 @@ def rephrase_with_groq(original: str) -> str:
     except Exception as e:
         print("Groq rephrase failed:", e)
         return original
+
 
 # =============================
 # WEBHOOK VERIFY (GET)
@@ -262,12 +375,16 @@ async def verify_webhook(request: Request):
         return int(p.get("hub.challenge", 0))
     return "Verification failed"
 
+
 # =============================
 # WEBHOOK RECEIVE (POST)
 # =============================
 @app.post("/webhook")
 async def handle_message(request: Request):
-    data: Dict[str, Any] = await request.json()
+    try:
+        data: Dict[str, Any] = await request.json()
+    except Exception:
+        return {"status": "no_json_body"}
     try:
         messages = data["entry"][0]["changes"][0]["value"].get("messages", [])
         if not messages:
@@ -295,10 +412,12 @@ async def handle_message(request: Request):
                     "service_web": "Web Development",
                     "service_mobile": "Mobile Apps",
                     "service_ai": "AI & Data Solutions",
-                    "service_cloud": "Cloud & DevOps"
+                    "service_cloud": "Cloud & DevOps",
                 }
                 service_name = service_map.get(reply_id, "an IT service")
-                send_interactive_message(from_number, get_after_service_prompt_payload(service_name))
+                send_interactive_message(
+                    from_number, get_after_service_prompt_payload(service_name)
+                )
             elif reply_id == "dwani_program":
                 send_interactive_message(from_number, get_dwani_buttons_payload())
             elif reply_id == "internship_tracks":
@@ -308,7 +427,11 @@ async def handle_message(request: Request):
                 send_text(from_number, rephrase_with_groq(KB["certifications"]))
                 # A public image of a sample certificate (replace with your own)
                 cert_image_url = "https://i.imgur.com/3N4o1fB.png"
-                send_image(from_number, cert_image_url, "Here is a sample certificate you can earn.")
+                send_image(
+                    from_number,
+                    cert_image_url,
+                    "Here is a sample certificate you can earn.",
+                )
                 send_interactive_message(from_number, get_back_to_menu_button_payload())
             elif reply_id == "apply_form":
                 send_text(from_number, rephrase_with_groq(KB["apply"]))
@@ -321,9 +444,9 @@ async def handle_message(request: Request):
             else:
                 send_text(from_number, KB["oos"])
                 send_interactive_message(from_number, get_main_menu_payload())
-            
+
             return {"status": "ok"}
-        
+
         # --- Handle Standard Text Messages as a fallback ---
         user_text = msg.get("text", {}).get("body", "")
         lc = user_text.strip().lower()
@@ -336,8 +459,14 @@ async def handle_message(request: Request):
             send_interactive_message(from_number, get_dwani_buttons_payload())
         elif lc in ALIASES["certifications"]:
             send_text(from_number, rephrase_with_groq(KB["certifications"]))
-            cert_image_url = "https://i.imgur.com/3N4o1fB.png" # Replace with a real image link
-            send_image(from_number, cert_image_url, "Here is a sample certificate you can earn.")
+            cert_image_url = (
+                "https://i.imgur.com/3N4o1fB.png"  # Replace with a real image link
+            )
+            send_image(
+                from_number,
+                cert_image_url,
+                "Here is a sample certificate you can earn.",
+            )
             send_interactive_message(from_number, get_back_to_menu_button_payload())
         else:
             send_text(from_number, rephrase_with_groq(KB["oos"]))
@@ -347,4 +476,3 @@ async def handle_message(request: Request):
         print("Webhook error:", e)
 
     return {"status": "ok"}
-
